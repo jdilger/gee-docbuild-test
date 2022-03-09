@@ -56,8 +56,8 @@ jobs:
         
       - name: commit files
         run: |
-          git add a
-          git commit -m "gee update" 
+          git add .
+          git commit -m "workflow gee update" 
                   
       - name: push
         uses: ad-m/github-push-action@master
