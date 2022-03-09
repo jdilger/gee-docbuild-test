@@ -1,0 +1,59 @@
+// // example of add legend
+// var pal = ["000000","fff824","44ff37","339a19"]
+// var labels = ["Very low or no forest carbon", "low","medium","high"]
+// var title = "Forest carbon"
+// var style = {
+//     'position':'bottom-left',
+//     'padding':'8px 16px',
+//   };
+// addLegend(pal, labels, title, style)
+ 
+
+// function to add legend on map based on palette and list of labels.
+// Takes palette list and list of labels
+function addLegend(palette, labels, title, style){
+  if (style === undefined) style = {
+    'position':'bottom-left',
+    'padding':'8px 16px',
+  };
+  if (palette.length == labels.length){
+    var symbolBox = ui.Panel();
+    for (var i=0; i<palette.length;i++){
+      if (labels[i]==="") continue;
+      var symbol = ui.Label({
+        style: {
+          backgroundColor: '#' + palette[i],
+          padding: '8px',
+          margin: '0 0 4px 0'
+        }
+      });
+      var description = ui.Label({
+        value: labels[i],
+        style: {margin: '0 0 4px 6px'}
+      });
+      symbolBox.add(ui.Panel({
+        widgets: [symbol, description],
+        layout: ui.Panel.Layout.Flow('horizontal')
+      }));
+    }
+    var legendWidgets = [];
+    if (title !== undefined) {
+      var legendTitle = ui.Label(title,{fontWeight: 'bold'});
+      legendWidgets = [legendTitle, symbolBox];
+    } else {
+      legendWidgets = [symbolBox];
+    }
+    var legend = ui.Panel({
+      widgets:legendWidgets,
+      layout:ui.Panel.Layout.Flow('vertical'),
+      style: style});
+    Map.add(legend);
+  } else {
+    print("Please supply right number of labels");
+  }
+  return {'success':'legend added'};
+}
+exports = {
+  addLegend : addLegend
+};
+

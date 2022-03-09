@@ -1,0 +1,234 @@
+/**** Start of imports. If edited, may not auto-convert in the playground. ****/
+var lc = ee.ImageCollection("COPERNICUS/Landcover/100m/Proba-V-C3/Global");
+/***** End of imports. If edited, may not auto-convert in the playground. *****/
+var legend = require('users/TEST/theGeoict:ui/legend');
+var basemap = require('users/TEST/theGeoict:ui/basemap');
+ 
+// quick ui 
+var dict = ui.data.ActiveDictionary();
+var checkBoxes = [];
+
+function addCheckBoxesToPanel(panel, label){
+  if (label){
+    label = ui.Label(label);
+    panel.add(label);
+  }
+  // add checkboxes in order they're in layer list
+  for (var i = 0; i< checkBoxes.length;i++){
+    panel.add(checkBoxes[i]);
+  }
+  // reset checkBoxes 
+  checkBoxes = [];
+}
+addCheckBoxesToPanel.help = "Adds checkBoxLayer elements to a panel.";
+
+function checkBoxLayer(params){
+  // label: title of the check box
+  // Map: the maplayer to turn layer on/off
+  // layer object: image, feature, feacture collection
+  // key: optional - dictionary key for checkbox object (defaults to checkboxN)
+  // value : optional - default value of check box (defaults to false)
+  var label, value, cbMap, layer, key, visParams;
+  label = params.label;
+  layer = params.layer;
+  cbMap = params.map;
+  key = params.key || label;//'checkBox' + String(checkBoxes.length);
+  value = params.value || false;
+  visParams = params.visParams || {};
+  
+  // set up layer 
+  var layerObject = ui.Map.Layer(layer, visParams, label, value);
+
+  // add obj to map
+  cbMap.add(layerObject);
+
+  // check shown on click
+  var onChange = function(bool){
+    getSubKey(key,'layerObject',dict).setShown(bool);
+  };
+  
+  var checkBox = ui.Checkbox(label, value, onChange, false);
+  dict.set(key,{'layerObject':layerObject,'checkBox':checkBox});
+
+  checkBoxes.unshift(checkBox);
+} 
+
+function introPanel(params){
+  //title: title of intro panel
+  // subtext: optional - a desctipion of the app
+  // width: the width of the panel as a format string (e.g. '300px')
+  // key: dictionary key for introPanel object
+  var title, subtext, width, key;
+  key = params.key;
+  title = params.title || 'GEE App';
+  subtext = params.subtext || '';
+  width = params.width || '300px';
+  
+  // Create a panel to hold our widgets.
+  var panel = ui.Panel();
+  panel.style().set('width', width);
+
+  subtext = ui.Label({
+    value:subtext,
+    style: {fontSize: '20px', fontWeight:'600'}
+    });
+
+  // Create an intro panel with labels.
+  var intro = ui.Panel([
+    ui.Label({
+      value: title,
+      style: {fontSize: '24px', fontWeight: 'bold'}
+    }), subtext
+  
+  ]);
+  var main = panel.add(intro);
+  
+  // add to dictionary to update stlyes later if wanted.
+  dict.set(key,{'mainPanel':main,'subtext':subtext, 'introPanel':intro});
+
+  return main;
+}
+
+function clickToInspectChart(params){
+  // panel: the panel to add the chart to
+  // key : a key to identify the chart
+  // imageCollection: the image collection for the time serise chart
+  // index : optional - int - the index of the ui panel live in. if not selected panels will be added each time clicked
+  // title: optional- the chart title, defaults 'Chart'
+  // vAxis: optional - vertical axis title, defaults ''
+  // hAxis: optional - horizional axis title, defaults 'time'
+  // reducer optional - defaults mean,
+  // scale: optional - defaults 30m,
+  var panel = params.panel;
+  var imageCollection = params.imageCollection;
+  var key = params.key;
+  
+  
+  var index = params.index;
+  var title = params.title || 'Chart';
+  var vAxis = params.vAxis || '';
+  var hAxis = params.hAxis || 'Time';
+  var format = params.format || 'MM-yy';
+  var reducer = params.reducer || ee.Reducer.mean();
+  var scale = params.scale || 30;
+  var latLon = params.latLon || false;
+  
+  // Create panels to hold lon/lat values.
+  
+  var lon = ui.Label();
+  var lat = ui.Label();
+  if (latLon){
+    panel.add(ui.Panel([lon, lat], ui.Panel.Layout.flow('horizontal')));
+  }
+  Map.onClick(function(coords) {
+
+    // Update the lon/lat panel with values from the click event.
+    lon.setValue('lon: ' + coords.lon.toFixed(2)),
+    lat.setValue('lat: ' + coords.lat.toFixed(2));
+  
+    // Add a red dot for the point clicked on.
+    var point = ee.Geometry.Point(coords.lon, coords.lat);
+    var dot = ui.Map.Layer(point, {color: 'FF0000'},'Inspector Point');
+
+    //remov pervious point or add new point to map    
+    crudMapLayer('dot', dot, 100);
+    
+    // Create serries chart.
+    var seriesChart = ui.Chart.image.series(imageCollection, point, reducer, scale);
+    seriesChart.setOptions({
+      title: title,
+      vAxis: {title: vAxis, maxValue:0.015, minValue:0},
+      hAxis: {title: hAxis, format: format, gridlines: {count: 7}},
+    });
+    
+    crudWidget(key, panel, seriesChart);
+
+  });
+}
+
+function crudWidget(key, panel, chart){
+  panel.remove(dict.get(key));
+  dict.set(key,chart);
+  panel.widgets().add(dict.get(key));
+}
+
+function crudMapLayer(key, layer, index){
+  if (dict.get(key)){
+    Map.remove(dict.get(key));
+  }
+  dict.set(key, layer);
+  Map.layers().set(index, dict.get(key)); 
+}
+
+function textBox(key, panel, text){
+  var label = ui.Label(text);
+  dict.set(key,label);
+  panel.widgets().add(label);
+}
+
+// helper functions
+function getSubKey(keyTop, keySub, activeDict){
+  activeDict = activeDict.get(keyTop);
+  return  ui.data.ActiveDictionary(activeDict).get(keySub);
+}
+
+function addLegendToMap(pal, labels, title, style){
+  legend.addLegend(pal, labels, title, style);
+}
+
+exports = {
+  introPanel : introPanel,
+  clickToInspectChart : clickToInspectChart,
+  dict : dict,
+  getSubKey:getSubKey,
+  textBox: textBox,
+  addLegendToMap: addLegendToMap,
+  basemap:basemap,
+  checkBoxLayer:checkBoxLayer,
+  addCheckBoxesToPanel:addCheckBoxesToPanel
+  
+};
+// // Example using the script ui componets
+
+// var panel = introPanel({
+//   key:'main',
+//   title:'Welcome to the app',
+//   subtext:'lol,',
+//   width:'300px'});
+// // print(dict)
+// // print(panel)
+// // clickToInspectChart(panel, imageCollection, title, vAxis, hAxis, format, reducer, scale)
+// clickToInspectChart({
+//   panel:panel,
+//   imageCollection:lc.select(['discrete_classification','tree-coverfraction']),
+//   title:'first chart',
+//   key:'discreteChart'
+// });
+// var cbParams = {label:'checkbox1',
+//   map:Map,
+//   layer:lc.first(),
+//   // key:'checkbox1'
+  
+// };
+
+// checkBoxLayer(cbParams);
+// var cbParams = {label:'checkbox2',
+//   map:Map,
+//   layer:lc.first(),
+//   // key:'checkbox1'
+  
+// };
+
+// checkBoxLayer(cbParams);
+// addCheckBoxesToPanel(panel);
+
+//   // label: title of the check box
+//   // Map: the maplayer to turn layer on/off
+//   // layer object: image, feature, feacture collection
+//   // panel : the panel to add the checkbox to
+//   // key: dictionary key for checkbox object
+//   // value : optional - default value of check box (defaults to false)
+// print(dict)
+// // getSubKey('main','subtext',dict).style().set({'fontFamily':'Times New Roman'})
+// ui.root.insert(0, panel);
+// // Map.addLayer(lc.first())
